@@ -268,10 +268,10 @@ const FichasPedidoModule = (() => {
     </div>` : ''}
 
     <!-- CONTENEDOR DE LA HOJA (imagen + overlay) -->
-    <div id="fp-hoja-print" class="${designMode?'design-on':''}" style="position:relative;width:100%;max-width:700px;box-shadow:0 3px 24px rgba(0,0,0,0.15);">
+    <div id="fp-hoja-print" class="${designMode?'design-on':''}" style="position:relative;width:100%;max-width:700px;box-shadow:0 3px 24px rgba(0,0,0,0.15);aspect-ratio:1055/1491;container-type:inline-size;">
 
       <img src="assets/ficha_form.jpeg" id="fpw-img"
-           style="width:100%;height:auto;display:block;" draggable="false">
+           style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;object-fit:contain;" draggable="false">
 
       <!-- Campos estándar -->
       ${renderStdField('nro',          `Nº`, `${f.nro}`,              pos.fields, fs, false)}
@@ -320,7 +320,7 @@ const FichasPedidoModule = (() => {
       <span class="fpw-field-label" style="display:${fontMode?'block':'none'}">${label}</span>
       <input class="fpw-inp-base fp-std-inp" data-pk="${pk}"
              value="${esc(val)}"
-             style="font-size:${fs}px; ${fontMode?'border:1.5px dashed #7C3AED; background:rgba(237,233,254,0.4);':''}"
+             style="font-size:calc(${fs} / 700 * 100cqw); ${fontMode?'border:1.5px dashed #7C3AED; background:rgba(237,233,254,0.4);':''}"
              ${designMode?'readonly':''}>
       ${fontMode ? `
       <div class="fpw-fs-controls no-print" style="position:absolute;right:-45px;top:0;display:flex;gap:2px;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px;z-index:50;">
@@ -361,7 +361,7 @@ const FichasPedidoModule = (() => {
       <button class="fpw-del-custom" data-custom-id="${cx.id}">✕</button>
       <input class="fpw-inp-base fp-custom-inp" data-custom-id="${cx.id}"
              value="${esc(val)}"
-             style="font-size:${fs}px; ${fontMode?'border:1.5px dashed #7C3AED; background:rgba(237,233,254,0.4);':''}"
+             style="font-size:calc(${fs} / 700 * 100cqw); ${fontMode?'border:1.5px dashed #7C3AED; background:rgba(237,233,254,0.4);':''}"
              ${designMode?'readonly':''}>
       ${fontMode ? `
       <div class="fpw-fs-controls no-print" style="position:absolute;right:-45px;top:0;display:flex;gap:2px;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px;z-index:50;">
@@ -441,7 +441,7 @@ const FichasPedidoModule = (() => {
           const wrap = c.querySelector(`.fpw-handle-wrap[data-pk="${pk}"]`);
           if (wrap) {
             const inp = wrap.querySelector('.fpw-inp-base');
-            if (inp) inp.style.fontSize = entry.fs + 'px';
+            if (inp) inp.style.fontSize = `calc(${entry.fs} / 700 * 100cqw)`;
           }
         }
       })
