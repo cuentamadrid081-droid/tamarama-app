@@ -141,19 +141,41 @@ const FichasPedidoModule = (() => {
 </style>
 
 <style media="print">
-  /* Ocultar todo lo demás en la página SOLAMENTE cuando se imprime desde esta sección */
+  /* 1. Ocultar todo lo demás en la página */
   body.printing-fichas * {
     visibility: hidden;
   }
   
-  /* Hacer visible solo la ficha y su contenido */
-  body.printing-fichas #fp-hoja-print, body.printing-fichas #fp-hoja-print * {
+  /* 2. Hacer visible solo la ficha y su contenido */
+  body.printing-fichas #fp-hoja-print, 
+  body.printing-fichas #fp-hoja-print * {
     visibility: visible;
   }
   
-  /* Posicionar la ficha en la esquina superior izquierda sin márgenes */
+  /* 3. Desactivar Flexbox y Scroll en TODOS los contenedores padres (Solución para iPad/Safari) */
+  body.printing-fichas,
+  body.printing-fichas html,
+  body.printing-fichas #fichas-pedido-container,
+  body.printing-fichas #fichas-pedido-container > div,
+  body.printing-fichas #fichas-pedido-container > div > div {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 4. Ocultar completamente la barra lateral y botones para que la hoja suba al tope */
+  body.printing-fichas aside,
+  body.printing-fichas .no-print {
+    display: none !important;
+  }
+  
+  /* 5. Posicionar la ficha de forma natural (no absolute, Safari lo odia) */
   body.printing-fichas #fp-hoja-print {
-    position: absolute !important;
+    position: relative !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;
