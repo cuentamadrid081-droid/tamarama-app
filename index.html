@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#F9A8C9">
+  <meta name="description" content="Tamarama — Sistema de gestión para Librería y Papelería Tamarama">
+  <title>Tamarama — Gestión de Negocio</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="estilos_v3.css">
+  <script src="fichas_pedido.js" defer></script>
+  <script src="stock.js" defer></script>
+  <script src="compras.js" defer></script>
+  <script src="ventas.js" defer></script>
+  <script src="arqueo.js" defer></script>
+  <script src="morosos.js" defer></script>
+  <script src="pedidos.js" defer></script>
+  <script src="historial_general.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+
+  <!-- ===== ENCABEZADO ===== -->
+  <header class="app-header">
+    <!-- Botón hamburguesa (izquierda) -->
+    <button class="menu-toggle" id="menu-toggle-btn" aria-label="Abrir menú" aria-expanded="false">
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+      <span class="hamburger-line"></span>
+    </button>
+
+    <!-- Fecha (derecha) -->
+    <div class="header-date" id="header-date"></div>
+  </header>
+
+  <!-- ===== OVERLAY (sombra cuando el menú está abierto) ===== -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- ===== MENÚ LATERAL DESPLEGABLE ===== -->
+  <nav class="sidebar" id="sidebar" aria-label="Menú principal">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Menú</span>
+      <button class="sidebar-close" id="sidebar-close-btn" aria-label="Cerrar menú">✕</button>
+    </div>
+
+    <ul class="nav-list">
+      <li>
+        <button class="nav-item" data-section="fichas-pedido" id="nav-fichas-pedido">
+          <span class="nav-icon">📋</span>
+          <span class="nav-label">Fichas de Pedido</span>
+          <span class="nav-arrow">›</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item active" data-section="ventas" id="nav-ventas">
+          <span class="nav-icon">🛒</span>
+          <span class="nav-label">Ventas</span>
+          <span class="nav-arrow">›</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item" data-section="stock" id="nav-stock">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Stock</span>
+          <span class="nav-arrow">›</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item" data-section="compras" id="nav-compras">
+          <span class="nav-icon">🧾</span>
+          <span class="nav-label">Compras</span>
+          <span class="nav-arrow">›</span>
+        </button>
+      </li>
+
+      <li>
+        <button class="nav-item" data-section="morosos" id="nav-morosos">
+          <span class="nav-icon">📋</span>
+          <span class="nav-label">Morosos</span>
+          <span class="nav-arrow">›</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item" data-section="pedidos" id="nav-pedidos">
+          <span class="nav-icon">📝</span>
+          <span class="nav-label">Nota de Pedidos</span>
+          <span class="nav-arrow">›</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item" data-section="historial" id="nav-historial">
+          <span class="nav-icon">📅</span>
+          <span class="nav-label">Historial</span>
+          <span class="nav-arrow">›</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <p class="sidebar-footer-text">Tamarama © 2026</p>
+    </div>
+  </nav>
+
+  <!-- ===== CONTENIDO PRINCIPAL ===== -->
+  <main class="main-content">
+
+    <!-- Sección: Fichas de Pedido -->
+    <section id="section-fichas-pedido" class="app-section">
+      <div id="fichas-pedido-container" style="height:100%;"></div>
+    </section>
+
+    <!-- Sección: Ventas (activa por defecto) -->
+    <section id="section-ventas" class="app-section active">
+      <div id="ventas-container"></div>
+    </section>
+
+    <!-- Sección: Stock -->
+    <section id="section-stock" class="app-section">
+      <div id="stock-container">
+        <!-- Contenido dinámico generado por stock.js -->
+      </div>
+    </section>
+
+
+    <!-- Sección: Compras -->
+    <section id="section-compras" class="app-section">
+      <div id="compras-container"></div>
+    </section>
+
+
+
+    <!-- Sección: Morosos -->
+    <section id="section-morosos" class="app-section">
+      <div id="morosos-container" style="height: 100%;"></div>
+    </section>
+
+    <!-- Sección: Nota de Pedidos -->
+    <section id="section-pedidos" class="app-section">
+      <!-- Contenido inyectado por pedidos.js -->
+    </section>
+
+    <!-- Sección: Historial -->
+    <section id="section-historial" class="app-section">
+        <div class="placeholder-icon">📅</div>
+        <h2 class="placeholder-title">Historial</h2>
+        <p class="placeholder-desc">Registro histórico de todas las operaciones.</p>
+        <div class="coming-soon-badge">Próximamente</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
