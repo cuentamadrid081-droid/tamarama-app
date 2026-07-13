@@ -34,6 +34,54 @@ const PedidosModule = (() => {
       .pcard-mid { font-weight: 600 !important; color: #111827 !important; margin-bottom: 5px !important; font-size: 15px !important; }
       .pcard-bot { font-size: 14px !important; color: #EC4899 !important; font-weight: 700 !important; }
       .pside-list { padding-top: 15px !important; }
+      
+      /* REGLAS DE IMPRESIÓN PARA SAFARI/IPAD */
+      @media print {
+        body.printing-pedidos * { visibility: hidden; }
+        body.printing-pedidos #hoja-print,
+        body.printing-pedidos #hoja-print * { visibility: visible; }
+        
+        /* Romper todos los contenedores elásticos para que tome toda la hoja */
+        body.printing-pedidos,
+        body.printing-pedidos html,
+        body.printing-pedidos .main-content,
+        body.printing-pedidos .app-section,
+        body.printing-pedidos #section-pedidos,
+        body.printing-pedidos .pedidos-layout,
+        body.printing-pedidos .pedidos-main {
+          display: block !important;
+          position: static !important;
+          height: auto !important;
+          min-height: auto !important;
+          overflow: visible !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        
+        /* Ocultar barra superior, menú y botones */
+        body.printing-pedidos .app-header,
+        body.printing-pedidos .sidebar,
+        body.printing-pedidos .pedidos-sidebar,
+        body.printing-pedidos .no-print {
+          display: none !important;
+        }
+        
+        /* Acomodar la nota arriba a la izquierda */
+        body.printing-pedidos #hoja-print {
+          position: relative !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        
+        /* Forzar colores en la impresión */
+        body.printing-pedidos #hoja-print {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
     `;
     document.head.appendChild(style);
   }
@@ -337,7 +385,9 @@ const PedidosModule = (() => {
 
       // Guardar PDF (Imprimir)
       if (e.target.closest('[data-action="print-pdf"]')) {
+        document.body.classList.add('printing-pedidos');
         window.print();
+        setTimeout(() => document.body.classList.remove('printing-pedidos'), 1000);
         return;
       }
     });
