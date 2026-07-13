@@ -155,6 +155,8 @@ const FichasPedidoModule = (() => {
   /* 3. Desactivar Flexbox y Scroll en TODOS los contenedores padres (Solución para iPad/Safari) */
   body.printing-fichas,
   body.printing-fichas html,
+  body.printing-fichas .main-content,
+  body.printing-fichas .app-section,
   body.printing-fichas #fichas-pedido-container,
   body.printing-fichas #fichas-pedido-container > div,
   body.printing-fichas #fichas-pedido-container > div > div {
@@ -167,8 +169,10 @@ const FichasPedidoModule = (() => {
     padding: 0 !important;
   }
 
-  /* 4. Ocultar completamente la barra lateral y botones para que la hoja suba al tope */
+  /* 4. Ocultar completamente la barra lateral, menú superior y botones */
   body.printing-fichas aside,
+  body.printing-fichas .app-header,
+  body.printing-fichas .sidebar,
   body.printing-fichas .no-print {
     display: none !important;
   }
@@ -532,24 +536,30 @@ const FichasPedidoModule = (() => {
     function getContRect() { return container.getBoundingClientRect(); }
     function pct(px, full) { return (px/full)*100; }
 
+    // Helper táctil
+    function getEventPoint(e) {
+      return e.type.startsWith('touch') ? e.touches[0] : e;
+    }
+
     // Drag (mover campo completo)
     c.querySelectorAll('.fpw-handle-wrap').forEach(wrap => {
-      wrap.addEventListener('mousedown', (e) => {
-        // Si el clic fue en una esquina de resize, no mover
-        if (e.target.classList.contains('fpw-rz')) return;
-        if (e.target.classList.contains('fpw-del-custom')) return;
-        e.preventDefault();
+      function startDrag(e) {
+        if (e.target.classList.contains('fpw-rz') || e.target.classList.contains('fpw-del-custom') || e.target.classList.contains('fpw-fs-btn')) return;
+        if(e.type === 'mousedown') e.preventDefault();
+        
+        const pt = getEventPoint(e);
         const pk   = wrap.dataset.pk;
         const p    = loadPos();
         const rect = getContRect();
-        const startX=e.clientX, startY=e.clientY;
+        const startX=pt.clientX, startY=pt.clientY;
         const entry = p.fields[pk] || p.custom.find(x=>x.id===pk);
         if (!entry) return;
         const startLeft=entry.left, startTop=entry.top;
 
         function onMove(ev) {
-          const dx=pct(ev.clientX-startX, rect.width);
-          const dy=pct(ev.clientY-startY, rect.height);
+          const ept = getEventPoint(ev);
+          const dx=pct(ept.clientX-startX, rect.width);
+          const dy=pct(ept.clientY-startY, rect.height);
           entry.left=Math.max(0,Math.min(98-entry.w, startLeft+dx));
           entry.top =Math.max(0,Math.min(98-entry.h, startTop+dy));
           wrap.style.left=entry.left+'%';
@@ -558,30 +568,40 @@ const FichasPedidoModule = (() => {
         function onUp() {
           document.removeEventListener('mousemove',onMove);
           document.removeEventListener('mouseup',onUp);
+          document.removeEventListener('touchmove',onMove);
+          document.removeEventListener('touchend',onUp);
           savePos(p);
         }
         document.addEventListener('mousemove',onMove);
         document.addEventListener('mouseup',onUp);
-      });
+        document.addEventListener('touchmove',onMove, {passive:false});
+        document.addEventListener('touchend',onUp);
+      }
+      wrap.addEventListener('mousedown', startDrag);
+      wrap.addEventListener('touchstart', startDrag, {passive:false});
     });
 
     // Resize (arrastrar esquinas)
     c.querySelectorAll('.fpw-rz').forEach(handle => {
-      handle.addEventListener('mousedown', (e) => {
-        e.preventDefault(); e.stopPropagation();
+      function startResize(e) {
+        if(e.type === 'mousedown') e.preventDefault();
+        e.stopPropagation();
+        const pt = getEventPoint(e);
+        
         const pk     = handle.dataset.pk;
-        const corner = handle.dataset.corner; // nw, ne, sw, se
+        const corner = handle.dataset.corner;
         const p      = loadPos();
         const rect   = getContRect();
         const entry  = p.fields[pk] || p.custom.find(x=>x.id===pk);
         if (!entry) return;
         const wrap = c.querySelector(`.fpw-handle-wrap[data-pk="${pk}"]`);
-        const startX=e.clientX, startY=e.clientY;
+        const startX=pt.clientX, startY=pt.clientY;
         const startW=entry.w, startH=entry.h, startLeft=entry.left, startTop=entry.top;
 
         function onMove(ev) {
-          const dx=pct(ev.clientX-startX, rect.width);
-          const dy=pct(ev.clientY-startY, rect.height);
+          const ept = getEventPoint(ev);
+          const dx=pct(ept.clientX-startX, rect.width);
+          const dy=pct(ept.clientY-startY, rect.height);
 
           if (corner==='se') {
             entry.w = Math.max(5, startW+dx);
@@ -614,11 +634,17 @@ const FichasPedidoModule = (() => {
         function onUp() {
           document.removeEventListener('mousemove',onMove);
           document.removeEventListener('mouseup',onUp);
+          document.removeEventListener('touchmove',onMove);
+          document.removeEventListener('touchend',onUp);
           savePos(p);
         }
         document.addEventListener('mousemove',onMove);
         document.addEventListener('mouseup',onUp);
-      });
+        document.addEventListener('touchmove',onMove, {passive:false});
+        document.addEventListener('touchend',onUp);
+      }
+      handle.addEventListener('mousedown', startResize);
+      handle.addEventListener('touchstart', startResize, {passive:false});
     });
   }
 
