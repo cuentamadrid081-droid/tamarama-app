@@ -141,18 +141,18 @@ const FichasPedidoModule = (() => {
 </style>
 
 <style media="print">
-  /* Ocultar todo lo demás en la página */
-  body * {
+  /* Ocultar todo lo demás en la página SOLAMENTE cuando se imprime desde esta sección */
+  body.printing-fichas * {
     visibility: hidden;
   }
   
   /* Hacer visible solo la ficha y su contenido */
-  #fp-hoja-print, #fp-hoja-print * {
+  body.printing-fichas #fp-hoja-print, body.printing-fichas #fp-hoja-print * {
     visibility: visible;
   }
   
   /* Posicionar la ficha en la esquina superior izquierda sin márgenes */
-  #fp-hoja-print {
+  body.printing-fichas #fp-hoja-print {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
@@ -165,7 +165,7 @@ const FichasPedidoModule = (() => {
   }
   
   /* Asegurar que la imagen ocupe todo el ancho */
-  #fpw-img {
+  body.printing-fichas #fpw-img {
     width: 100% !important;
     height: auto !important;
     display: block !important;
@@ -215,6 +215,20 @@ const FichasPedidoModule = (() => {
     ${f ? `
     <!-- TOOLBAR -->
     <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;width:100%;max-width:700px;margin-bottom:8px;" class="no-print">
+      
+      <button id="fpw-toggle-design"
+        style="background:${designMode?'#7C3AED':'#6B7280'};color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+        ${designMode?'✅ Listo (salir del modo diseño)':'🎨 Modo Diseño'}
+      </button>
+
+      ${designMode ? `
+      <button id="fpw-add-box"
+        style="background:#059669;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+        ➕ Agregar cuadro extra
+      </button>
+      <button id="fpw-reset-pos" style="background:#EF4444;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;">↺ Resetear Layout</button>
+      ` : ''}
+
       <button id="fpw-toggle-fontmode" style="background:${fontMode?'#7C3AED':'#6B7280'};color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;">
         ${fontMode ? '✅ Guardar tamaños' : '🔤 Ajustar tamaños de letra'}
       </button>
@@ -312,7 +326,6 @@ const FichasPedidoModule = (() => {
   }
 
   function renderCustomField(cx, f, globalFs) {
-    // cx = { id, top, left, w, h, fs }
     const fs = cx.fs || globalFs || 16;
     const val = (f && f.customValues && f.customValues[cx.id]) || '';
     return `
@@ -361,7 +374,16 @@ const FichasPedidoModule = (() => {
     });
 
     // PDF
-    c.querySelector('#fpw-print')?.addEventListener('click', () => window.print());
+    c.querySelector('#fpw-print')?.addEventListener('click', () => {
+      document.body.classList.add('printing-fichas');
+      window.print();
+      setTimeout(() => document.body.classList.remove('printing-fichas'), 1000);
+    });
+
+    // Toggle modo diseño
+    c.querySelector('#fpw-toggle-design')?.addEventListener('click', () => {
+      designMode=!designMode; render(c);
+    });
 
     // Toggle font mode
     c.querySelector('#fpw-toggle-fontmode')?.addEventListener('click', () => {
@@ -398,20 +420,6 @@ const FichasPedidoModule = (() => {
         }
       })
     );
-
-    // Tamaño letra (global, obsoleto pero mantenido si estuviera visible)
-    c.querySelector('#fpw-fs-up')?.addEventListener('click', () => {
-      const p=loadPos(); p.fontSize=Math.min(40,(p.fontSize||16)+1);
-      savePos(p);
-      c.querySelectorAll('.fpw-inp-base').forEach(i=>i.style.fontSize=p.fontSize+'px');
-      c.querySelector('#fpw-fs-val').textContent=p.fontSize+'px';
-    });
-    c.querySelector('#fpw-fs-down')?.addEventListener('click', () => {
-      const p=loadPos(); p.fontSize=Math.max(8,(p.fontSize||16)-1);
-      savePos(p);
-      c.querySelectorAll('.fpw-inp-base').forEach(i=>i.style.fontSize=p.fontSize+'px');
-      c.querySelector('#fpw-fs-val').textContent=p.fontSize+'px';
-    });
 
     // Resetear posiciones
     c.querySelector('#fpw-reset-pos')?.addEventListener('click', () => {
@@ -460,7 +468,6 @@ const FichasPedidoModule = (() => {
         } else { f[pk]=inp.value; }
         save(dd);
 
-        // Actualizar el panel lateral dinámicamente al escribir
         if (pk === 'cliente' || pk === 'fechaEmision') {
           const sitem = c.querySelector(`.fpw-sitem[data-id="${current}"]`);
           if (sitem) {
