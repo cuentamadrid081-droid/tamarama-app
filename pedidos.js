@@ -386,8 +386,10 @@ const PedidosModule = (() => {
       // Guardar PDF (Imprimir)
       if (e.target.closest('[data-action="print-pdf"]')) {
         document.body.classList.add('printing-pedidos');
-        window.print();
-        setTimeout(() => document.body.classList.remove('printing-pedidos'), 1000);
+        setTimeout(() => {
+          window.print();
+          setTimeout(() => document.body.classList.remove('printing-pedidos'), 1000);
+        }, 150);
         return;
       }
     });

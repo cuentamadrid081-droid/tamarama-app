@@ -9,6 +9,23 @@ const VentasModule = (() => {
   const STORAGE_KEY = 'tamarama_ventas_v1';
   let panelOpen = false;
 
+  // Inyectar estilos para el autocompletado y botones de stock
+  if (!document.getElementById('ventas-ac-styles')) {
+    const style = document.createElement('style');
+    style.id = 'ventas-ac-styles';
+    style.textContent = `
+      .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #E5E7EB; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto; z-index: 100; list-style: none; padding: 0; margin: 4px 0 0 0; display: none; }
+      .ac-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #F3F4F6; display: flex; justify-content: space-between; font-size: 14px; color: #374151; transition: background 0.1s; }
+      .ac-item:hover { background: #FDF2F8; color: #BE185D; }
+      .ac-price { font-weight: 700; color: #EC4899; }
+      
+      .stock-btn { background: #3B82F6; color: white; border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+      .stock-btn:hover { background: #2563EB; }
+      .stock-badge { background: #DEF7EC; color: #03543F; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; display: inline-block; }
+    `;
+    document.head.appendChild(style);
+  }
+
   // ── DATOS ───────────────────────────────────────────────────────────────
 
   function loadData() {
@@ -51,6 +68,62 @@ const VentasModule = (() => {
     return `${dias[d.getDay()]} ${d.getDate()} ${meses[d.getMonth()]} ${d.getFullYear()}`;
   }
 
+  // ── LÓGICA DE AUTOCOMPLETADO ────────────────────────────────────────────
+
+  function getStockItems() {
+    try {
+      const raw = localStorage.getItem('tamarama_stock_v1');
+      if (raw) {
+        const d = JSON.parse(raw);
+        let items = [];
+        (d.categories || []).forEach(c => items = items.concat(c.items || []));
+        return items;
+      }
+    } catch(e) {}
+    return [];
+  }
+
+  function showAutocomplete(input) {
+    const term = input.value.trim().toLowerCase();
+    
+    let ac = document.getElementById('ventas-ac-dropdown');
+    if (!ac) {
+      ac = document.createElement('ul');
+      ac.id = 'ventas-ac-dropdown';
+      ac.className = 'autocomplete-list';
+      document.body.appendChild(ac);
+    }
+    
+    const row = input.closest('tr');
+    if (row) ac.dataset.targetRowId = row.dataset.rowId;
+    
+    if (!term) {
+      ac.style.display = 'none';
+      return;
+    }
+
+    const stock = getStockItems();
+    const matches = stock.filter(i => i.description && i.description.toLowerCase().includes(term));
+    
+    if (matches.length === 0) {
+      ac.style.display = 'none';
+      return;
+    }
+    
+    ac.innerHTML = matches.map(m => `
+      <li class="ac-item" data-desc="${esc(m.description)}" data-price="${m.price || 0}">
+        ${esc(m.description)} <span class="ac-price">₲${fmt(m.price || 0)}</span>
+      </li>
+    `).join('');
+    
+    // Posicionar justo debajo del input
+    const rect = input.getBoundingClientRect();
+    ac.style.top = (rect.bottom + window.scrollY) + 'px';
+    ac.style.left = (rect.left + window.scrollX) + 'px';
+    ac.style.width = rect.width + 'px';
+    ac.style.display = 'block';
+  }
+
   // ── RENDER PRINCIPAL ────────────────────────────────────────────────────
 
   function render() {
@@ -82,13 +155,14 @@ const VentasModule = (() => {
                   <th class="th-vprecio">P. Unitario</th>
                   <th class="th-vtotal">Total</th>
                   <th class="th-vfecha">Fecha</th>
+                  <th class="th-vstock" style="width: 100px; text-align: center;">Stock</th>
                   <th class="th-vdel"></th>
                 </tr>
               </thead>
               <tbody id="ventas-tbody">
                 ${data.sales.length === 0
                   ? `<tr class="empty-row">
-                       <td colspan="6">
+                       <td colspan="7">
                          <div class="compras-empty">
                            <span class="empty-icon" style="font-size:40px;">🛒</span>
                            <p>Todavía no hay ventas registradas.</p>
@@ -141,7 +215,7 @@ const VentasModule = (() => {
         </td>
         <td class="td-vdesc">
           <input class="cell-inp" type="text" data-field="descripcion"
-                 value="${esc(s.descripcion ?? '')}" placeholder="Descripción">
+                 value="${esc(s.descripcion ?? '')}" placeholder="Descripción" autocomplete="off">
         </td>
         <td class="td-vprecio">
           <div class="precio-cell">
@@ -158,6 +232,12 @@ const VentasModule = (() => {
         <td class="td-vfecha">
           <input class="cell-inp cell-date" type="date" data-field="fecha"
                  value="${s.fecha ?? today()}">
+        </td>
+        <td class="td-vstock" style="text-align: center; vertical-align: middle;">
+          ${s.stockDeducted
+            ? `<span class="stock-badge">✅ Listo</span>`
+            : `<button class="stock-btn" data-action="deduct-stock" data-row-id="${s.id}" type="button">📦 Descontar</button>`
+          }
         </td>
         <td class="td-vdel">
           <button class="row-del" data-action="delete-sale"
@@ -382,6 +462,37 @@ const VentasModule = (() => {
     if (container.dataset.eventsAttached) return;
     container.dataset.eventsAttached = 'true';
 
+    // Cerrar autocompletados si se hace clic fuera o Selección de ítem
+    document.addEventListener('click', (e) => {
+      // Selección de autocompletado
+      const acItem = e.target.closest('.ac-item');
+      if (acItem) {
+        const ac = acItem.closest('.autocomplete-list');
+        const rowId = ac.dataset.targetRowId;
+        const row = document.querySelector(`.ventas-row[data-row-id="${rowId}"]`);
+        
+        if (row) {
+          const descInp = row.querySelector('[data-field="descripcion"]');
+          const priceInp = row.querySelector('[data-field="precioUnit"]');
+          
+          descInp.value = acItem.dataset.desc;
+          if (priceInp && acItem.dataset.price > 0) {
+             priceInp.value = fmt(acItem.dataset.price);
+          }
+          
+          descInp.dispatchEvent(new Event('input', { bubbles: true }));
+          if (priceInp) priceInp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        
+        ac.style.display = 'none';
+        return;
+      }
+      
+      if (!e.target.closest('.td-vdesc') && !e.target.closest('.autocomplete-list')) {
+        document.querySelectorAll('.autocomplete-list').forEach(l => l.style.display = 'none');
+      }
+    });
+
     container.addEventListener('click', function(e) {
 
       // Agregar venta
@@ -410,6 +521,60 @@ const VentasModule = (() => {
         d.sales = d.sales.filter(s => s.id !== delBtn.dataset.rowId);
         saveData(d);
         render();
+        return;
+      }
+      
+      // Descontar de stock
+      const deductBtn = e.target.closest('[data-action="deduct-stock"]');
+      if (deductBtn) {
+        const rowId = deductBtn.dataset.rowId;
+        const d = loadData();
+        const sale = d.sales.find(s => s.id === rowId);
+        if (!sale) return;
+        
+        if (!sale.descripcion || !sale.cantidad || Number(sale.cantidad) <= 0) {
+          alert('Asegurate de completar la descripción y cantidad de la venta primero.');
+          return;
+        }
+
+        try {
+          const rawStock = localStorage.getItem('tamarama_stock_v1');
+          if (!rawStock) { alert('El inventario de stock está vacío.'); return; }
+          
+          let stockData = JSON.parse(rawStock);
+          let found = false;
+          let searchTerm = sale.descripcion.trim().toLowerCase();
+          
+          for (let cat of stockData.categories) {
+            for (let item of cat.items) {
+              if (item.description && item.description.toLowerCase() === searchTerm) {
+                // Encontrado, restar del stock
+                let qtyToDeduct = Number(sale.cantidad);
+                item.quantity = Math.max(0, (Number(item.quantity) || 0) - qtyToDeduct);
+                found = true;
+                
+                // Registrar movimiento
+                if (typeof StockModule !== 'undefined' && StockModule.recordMovement) {
+                  StockModule.recordMovement(item.id, item.description, cat.name, -qtyToDeduct, 'Venta');
+                }
+                break;
+              }
+            }
+            if (found) break;
+          }
+          
+          if (found) {
+            localStorage.setItem('tamarama_stock_v1', JSON.stringify(stockData));
+            sale.stockDeducted = true;
+            saveData(d);
+            render();
+          } else {
+            alert('No se encontró el producto exacto en el stock: "' + sale.descripcion + '"');
+          }
+        } catch(err) {
+          console.error('Error al descontar stock', err);
+          alert('Hubo un error al descontar del stock.');
+        }
         return;
       }
 
@@ -470,6 +635,11 @@ const VentasModule = (() => {
           const total = (Number(sale.cantidad)||0) * (Number(sale.precioUnit)||0);
           const totalEl = row.querySelector('.vtotal-display');
           if (totalEl) totalEl.textContent = '₲' + fmt(total);
+        }
+        
+        // Autocompletado si es descripción
+        if (field === 'descripcion') {
+          showAutocomplete(input);
         }
 
         // Refrescar panel si está abierto
