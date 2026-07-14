@@ -401,9 +401,12 @@ const FichasPedidoModule = (() => {
 
     // PDF
     c.querySelector('#fpw-print')?.addEventListener('click', () => {
+      window.scrollTo(0, 0);
       document.body.classList.add('printing-fichas');
-      window.print();
-      setTimeout(() => document.body.classList.remove('printing-fichas'), 1000);
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => document.body.classList.remove('printing-fichas'), 1000);
+      }, 150);
     });
 
     // Toggle modo diseño

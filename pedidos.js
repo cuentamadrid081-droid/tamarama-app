@@ -385,6 +385,7 @@ const PedidosModule = (() => {
 
       // Guardar PDF (Imprimir)
       if (e.target.closest('[data-action="print-pdf"]')) {
+        window.scrollTo(0, 0);
         document.body.classList.add('printing-pedidos');
         setTimeout(() => {
           window.print();
