@@ -397,7 +397,7 @@ const PedidosModule = (() => {
       setTimeout(() => {
         window.print();
         setTimeout(() => document.body.classList.remove('printing-pedidos'), 1000);
-      }, 150);
+      }, 400); // 400ms para asegurar que Safari recalcule el layout SVG antes de imprimir
     });
 
     // Toggle modo diseño
@@ -470,6 +470,16 @@ const PedidosModule = (() => {
         let rawVal = inp.value.replace(/₲/g, '').replace(/\./g, '').trim();
         
         if (pk.startsWith('cant') || pk.startsWith('puni')) {
+           let onlyNum = rawVal.replace(/\D/g, '');
+           if (onlyNum) {
+             if (pk.startsWith('puni')) inp.value = '₲' + fmt(onlyNum);
+             else inp.value = fmt(onlyNum);
+             rawVal = onlyNum;
+           } else {
+             inp.value = '';
+             rawVal = '';
+           }
+           
            n[pk] = rawVal;
            // Calcular total fila
            const idx = pk.replace(/\D/g, '');
