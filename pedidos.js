@@ -84,7 +84,7 @@ const PedidosModule = (() => {
         rowsHTML += renderStdField('cant'+i, 'Cant', n['cant'+i], pos.fields, fs, true);
         rowsHTML += renderStdField('desc'+i, 'Desc', n['desc'+i], pos.fields, fs, false);
         rowsHTML += renderStdField('puni'+i, 'P.Uni', n['puni'+i], pos.fields, fs, true);
-        rowsHTML += renderStdField('tot'+i, 'Total', n['tot'+i], pos.fields, fs, true, true);
+        rowsHTML += renderStdField('tot'+i, 'Total', n['tot'+i], pos.fields, fs, true, false);
       }
     }
 
@@ -489,7 +489,19 @@ const PedidosModule = (() => {
 
         // Actualizar valores en vivo
         if (pk.startsWith('cant') || pk.startsWith('puni')) {
-           render(c); // Re-render para actualizar cálculos visualmente
+           // Actualizar total de la fila
+           const idx = pk.replace(/\D/g, '');
+           const totWrap = c.querySelector(`.npw-handle-wrap[data-pk="tot${idx}"] .npw-inp-base`);
+           if (totWrap) totWrap.value = n['tot'+idx] ? '₲' + fmt(n['tot'+idx]) : '';
+           
+           // Actualizar total general
+           const mainTotWrap = c.querySelector(`.npw-handle-wrap[data-pk="total"] .npw-inp-base`);
+           if (mainTotWrap) mainTotWrap.value = n.total ? '₲' + fmt(n.total) : '';
+
+           // Actualizar historial lateral
+           const sitem = c.querySelector(`.npw-sitem[data-id="${current}"] .sitem-total`);
+           if (sitem) sitem.textContent = n.total ? '₲' + fmt(n.total) : '₲0';
+           
            return;
         }
 
