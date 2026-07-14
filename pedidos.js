@@ -177,12 +177,18 @@ const PedidosModule = (() => {
     overflow: visible !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: transparent !important;
   }
 
   body.printing-pedidos aside,
   body.printing-pedidos .app-header,
   body.printing-pedidos .sidebar,
-  body.printing-pedidos .no-print { display: none !important; }
+  body.printing-pedidos .no-print { 
+    display: none !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    visibility: hidden !important;
+  }
   
   body.printing-pedidos #np-hoja-print {
     position: relative !important;
@@ -219,7 +225,7 @@ const PedidosModule = (() => {
         : d.notas.slice().reverse().map(x=>`
           <div class="npw-sitem" data-id="${x.id}" style="padding:9px 12px;border-bottom:1px solid #f5f5f5;cursor:pointer;background:${x.id===current?'#fce7f3':'#fff'};border-left:${x.id===current?'3px solid #E91E8C':'3px solid transparent'};">
             <b style="display:flex;justify-content:space-between;font-size:12px;color:#222;">
-              <span>Nº${x.nro}</span>
+              <span class="sitem-nro">Nº${x.nro}</span>
               <span class="sitem-fecha" style="font-weight:normal;color:#777;font-size:10px;">${esc(x.fecha||'')}</span>
             </b>
             <span class="sitem-nombre" style="display:block;font-size:12px;color:#444;margin-top:1px;">${esc(x.nombre||'Sin nombre')}</span>
@@ -311,7 +317,7 @@ const PedidosModule = (() => {
          style="top:${p.top}%;left:${p.left}%;width:${p.w}%;height:${p.h}%;">
       <span class="npw-field-label" style="display:${fontMode?'block':'none'}">${label}</span>
       <input class="npw-inp-base np-std-inp ${alignClass}" data-pk="${pk}"
-             value="${esc(dispVal)}" ${pk === 'nro' ? 'readonly' : ''}
+             value="${esc(dispVal)}"
              style="font-size:calc(${fs} / 700 * 100cqw); ${boldStyle} ${fontMode?'border:1.5px dashed #7C3AED; background:rgba(237,233,254,0.4);':''}"
              ${designMode?'readonly':''}>
       ${fontMode ? `
@@ -461,7 +467,7 @@ const PedidosModule = (() => {
       }));
 
     // Auto-guardar campos estándar
-    c.querySelectorAll('.np-std-inp').forEach(inp =>
+    c.querySelectorAll('.np-std-inp').forEach(inp => {
       inp.addEventListener('input', () => {
         if (designMode) return;
         const pk=inp.dataset.pk; const dd=load(); const n=dd.notas.find(x=>x.id===current);
@@ -471,16 +477,8 @@ const PedidosModule = (() => {
         
         if (pk.startsWith('cant') || pk.startsWith('puni')) {
            let onlyNum = rawVal.replace(/\D/g, '');
-           if (onlyNum) {
-             if (pk.startsWith('puni')) inp.value = '₲' + fmt(onlyNum);
-             else inp.value = fmt(onlyNum);
-             rawVal = onlyNum;
-           } else {
-             inp.value = '';
-             rawVal = '';
-           }
+           n[pk] = onlyNum;
            
-           n[pk] = rawVal;
            // Calcular total fila
            const idx = pk.replace(/\D/g, '');
            const cVal = Number(n['cant'+idx]) || 0;
@@ -497,21 +495,17 @@ const PedidosModule = (() => {
 
         save(dd);
 
-        // Actualizar valores en vivo
+        // Actualizar valores en vivo (totales)
         if (pk.startsWith('cant') || pk.startsWith('puni')) {
-           // Actualizar total de la fila
            const idx = pk.replace(/\D/g, '');
            const totWrap = c.querySelector(`.npw-handle-wrap[data-pk="tot${idx}"] .npw-inp-base`);
            if (totWrap) totWrap.value = n['tot'+idx] ? '₲' + fmt(n['tot'+idx]) : '';
            
-           // Actualizar total general
            const mainTotWrap = c.querySelector(`.npw-handle-wrap[data-pk="total"] .npw-inp-base`);
            if (mainTotWrap) mainTotWrap.value = n.total ? '₲' + fmt(n.total) : '';
 
-           // Actualizar historial lateral
            const sitem = c.querySelector(`.npw-sitem[data-id="${current}"] .sitem-total`);
            if (sitem) sitem.textContent = n.total ? '₲' + fmt(n.total) : '₲0';
-           
            return;
         }
 
@@ -529,7 +523,30 @@ const PedidosModule = (() => {
             if (feSpan) feSpan.textContent = inp.value || '';
           }
         }
-      }));
+        if (pk === 'nro') {
+          const sitem = c.querySelector(`.npw-sitem[data-id="${current}"]`);
+          if (sitem) {
+            const nroSpan = sitem.querySelector('.sitem-nro');
+            if (nroSpan) nroSpan.textContent = `Nº${inp.value}`;
+          }
+        }
+      });
+      
+      inp.addEventListener('blur', () => {
+        if (designMode) return;
+        const pk=inp.dataset.pk;
+        let rawVal = inp.value.replace(/₲/g, '').replace(/\./g, '').trim();
+        if (pk.startsWith('cant') || pk.startsWith('puni')) {
+           let onlyNum = rawVal.replace(/\D/g, '');
+           if (onlyNum) {
+             if (pk.startsWith('puni')) inp.value = '₲' + fmt(onlyNum);
+             else inp.value = fmt(onlyNum);
+           } else {
+             inp.value = '';
+           }
+        }
+      });
+    });
 
     // Auto-guardar campos custom
     c.querySelectorAll('.np-custom-inp').forEach(inp =>
