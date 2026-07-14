@@ -191,15 +191,19 @@ const PedidosModule = (() => {
   }
   
   body.printing-pedidos #np-hoja-print {
-    position: relative !important;
+    position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-width: 210mm !important;
+    max-height: 297mm !important;
     box-shadow: none !important;
     page-break-inside: avoid;
+    z-index: 99999 !important;
+    background: white !important;
   }
   
   body.printing-pedidos #npw-img {
