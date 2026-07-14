@@ -1,491 +1,646 @@
 /**
- * TAMARAMA — Módulo de Nota de Pedido
- * Generador de notas con formato de papel, exportable a PDF (impresión) y con historial.
+ * TAMARAMA — Módulo de Nota de Pedido (Sistema Drag & Drop)
+ * Editor visual: imagen SVG como fondo, campos arrastrables y redimensionables.
  */
-
 const PedidosModule = (() => {
   'use strict';
+  const KEY     = 'tamarama_pedidos_v2';
+  const POS_KEY = 'tamarama_pedidos_pos_v2';
 
-  const STORAGE_KEY = 'tamarama_pedidos_v1';
-  let currentPedidoId = null;
+  // Generar posiciones por defecto
+  const DEFAULT_POS = {
+    nro:          { top:11.8, left:85,  w:10, h:3.5 },
+    nombre:       { top:18.5, left:33.5,w:56, h:3   },
+    telefono:     { top:22.8, left:19,  w:71, h:3   },
+    fecha:        { top:27.2, left:16.5,w:73.5, h:3 },
+    
+    efectivo:     { top:82.1, left:25.5,w:2.5,h:2   },
+    transferencia:{ top:82.1, left:38.7,w:2.5,h:2   },
+    qr:           { top:82.1, left:52,  w:2.5,h:2   },
+    total:        { top:82,   left:79,  w:15, h:4   },
+  };
 
-  // Inyectar CSS directo para asegurar que se vea (salta el caché)
-  if (!document.getElementById('tamarama-pink-styles')) {
-    const style = document.createElement('style');
-    style.id = 'tamarama-pink-styles';
-    style.textContent = `
-      .hoja-datos { background: #FDF2F8 !important; border: 1px solid #FBCFE8 !important; border-radius: 8px !important; padding: 20px !important; margin-bottom: 25px !important; }
-      .dato-row label { font-weight: 700 !important; color: #831843 !important; }
-      .dato-row .hinp { background: white !important; border: 1px solid #FBCFE8 !important; border-radius: 6px !important; padding: 8px 12px !important; }
-      .hoja-table { border-collapse: separate !important; border-spacing: 0 !important; border: 1px solid #FBCFE8 !important; border-radius: 8px !important; overflow: hidden !important; }
-      .hoja-table th { background: #FCE7F3 !important; color: #BE185D !important; padding: 12px 10px !important; text-transform: uppercase !important; font-weight: 800 !important; }
-      .hoja-table td { border-bottom: 1px solid #FBCFE8 !important; background: white !important; }
-      .hoja-footer { background: #FDF2F8 !important; border: 1px solid #FBCFE8 !important; border-radius: 8px !important; padding: 25px !important; }
-      .forma-pago { background: white !important; border: 1px solid #FBCFE8 !important; border-radius: 6px !important; padding: 10px 15px !important; }
-      .forma-pago label { font-weight: 700 !important; color: #831843 !important; }
-      .total-box { background: #EC4899 !important; color: white !important; border-radius: 8px !important; box-shadow: 0 4px 12px rgba(236,72,153,0.3) !important; padding: 15px 30px !important; }
-      .firma-line { border-top: 1px dashed #9CA3AF !important; }
-      
-      /* HISTORIAL (Sidebar) Burbujas */
-      .pedido-card { background: white !important; border: 1px solid #E5E7EB !important; border-radius: 8px !important; padding: 12px 15px !important; margin-bottom: 12px !important; cursor: pointer !important; transition: all 0.2s !important; }
-      .pedido-card:hover { background: #FDF2F8 !important; border-color: #FBCFE8 !important; transform: translateY(-2px) !important; box-shadow: 0 4px 10px rgba(236,72,153,0.1) !important; }
-      .pedido-card.selected { background: #FCE7F3 !important; border-color: #EC4899 !important; border-left: 5px solid #EC4899 !important; }
-      .pcard-top { display: flex !important; justify-content: space-between !important; margin-bottom: 5px !important; color: #831843 !important; font-size: 13px !important; }
-      .pcard-mid { font-weight: 600 !important; color: #111827 !important; margin-bottom: 5px !important; font-size: 15px !important; }
-      .pcard-bot { font-size: 14px !important; color: #EC4899 !important; font-weight: 700 !important; }
-      .pside-list { padding-top: 15px !important; }
-      
-      /* REGLAS DE IMPRESIÓN PARA SAFARI/IPAD */
-      @media print {
-        body.printing-pedidos * { visibility: hidden; }
-        body.printing-pedidos #hoja-print,
-        body.printing-pedidos #hoja-print * { visibility: visible; }
-        
-        /* Romper todos los contenedores elásticos para que tome toda la hoja */
-        body.printing-pedidos,
-        body.printing-pedidos html,
-        body.printing-pedidos .main-content,
-        body.printing-pedidos .app-section,
-        body.printing-pedidos #section-pedidos,
-        body.printing-pedidos .pedidos-layout,
-        body.printing-pedidos .pedidos-main {
-          display: block !important;
-          position: static !important;
-          height: auto !important;
-          min-height: auto !important;
-          overflow: visible !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        /* Ocultar barra superior, menú y botones */
-        body.printing-pedidos .app-header,
-        body.printing-pedidos .sidebar,
-        body.printing-pedidos .pedidos-sidebar,
-        body.printing-pedidos .no-print {
-          display: none !important;
-        }
-        
-        /* Acomodar la nota arriba a la izquierda */
-        body.printing-pedidos #hoja-print {
-          position: relative !important;
-          left: 0 !important;
-          top: 0 !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        /* Forzar colores en la impresión */
-        body.printing-pedidos #hoja-print {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
+  // Generar las 10 filas de la tabla
+  for (let i = 0; i < 10; i++) {
+    const topY = 40.5 + (i * 3.69);
+    DEFAULT_POS['cant'+i] = { top: topY, left: 5,   w:13.5, h: 3.5 };
+    DEFAULT_POS['desc'+i] = { top: topY, left: 19.5,w:46,   h: 3.5 };
+    DEFAULT_POS['puni'+i] = { top: topY, left: 67,  w:11,   h: 3.5 };
+    DEFAULT_POS['tot'+i]  = { top: topY, left: 79.5,w:15,   h: 3.5 };
+  }
+
+  function loadPos() {
+    try {
+      const r = localStorage.getItem(POS_KEY);
+      if (r) {
+        const saved = JSON.parse(r);
+        return {
+          fields: {...DEFAULT_POS, ...(saved.fields||{})},
+          custom: saved.custom || [],
+          fontSize: saved.fontSize || 16,
+        };
       }
-    `;
-    document.head.appendChild(style);
+    } catch(e){}
+    return { fields: JSON.parse(JSON.stringify(DEFAULT_POS)), custom: [], fontSize: 16 };
   }
+  function savePos(p) { localStorage.setItem(POS_KEY, JSON.stringify(p)); }
 
-  // ── DATOS ───────────────────────────────────────────────────────────────
-
-  function loadData() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { notas: [] };
+  function load() {
+    try { const r = localStorage.getItem(KEY); if(r) return JSON.parse(r); } catch(e){}
+    return { notas:[], next:1 };
   }
-
-  function saveData(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }
-
-  function uid() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-  }
-
-  function today() {
-    const d = new Date();
-    return d.toISOString().split('T')[0];
-  }
-
-  function esc(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
+  function save(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
+  function uid() { return 'np'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+  function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function fmt(num) {
     if (isNaN(num)) return '0';
     return Number(num).toLocaleString('es-PY', { maximumFractionDigits: 0 });
   }
+  function today() { return new Date().toISOString().split('T')[0]; }
 
-  // ── RENDER ──────────────────────────────────────────────────────────────
-
-  function render() {
-    const container = document.getElementById('section-pedidos');
-    if (!container) return;
-
-    const data = loadData();
-
-    if (!currentPedidoId && data.notas.length > 0) {
-      currentPedidoId = data.notas[0].id;
-    }
-
-    // Ordenar notas de más reciente a más antigua
-    const sortedNotas = [...data.notas].sort((a, b) => b.nro - a.nro);
-
-    container.innerHTML = `
-      <div class="pedidos-layout">
-        <!-- BARRA LATERAL: HISTORIAL -->
-        <aside class="pedidos-sidebar no-print">
-          <div class="pside-header">
-            <h3>📝 Historial</h3>
-            <button class="btn-primary" data-action="new-pedido">+ Nueva</button>
-          </div>
-          <div class="pside-list">
-            ${sortedNotas.length === 0 ? '<p class="empty-msg">No hay notas guardadas.</p>' : ''}
-            ${sortedNotas.map(n => buildSidebarCard(n)).join('')}
-          </div>
-        </aside>
-
-        <!-- ÁREA PRINCIPAL: LA NOTA (HOJA) -->
-        <main class="pedidos-main">
-          ${currentPedidoId ? buildNotaSheet(data.notas.find(n => n.id === currentPedidoId)) : '<div class="empty-state no-print">Seleccioná o creá una nota de pedido</div>'}
-        </main>
-      </div>
-    `;
-
-    setupEvents(container);
-  }
-
-  function buildSidebarCard(n) {
-    const isSelected = n.id === currentPedidoId ? 'selected' : '';
-    const total = calculateTotal(n.items);
-    return `
-      <div class="pedido-card ${isSelected}" data-action="select-pedido" data-id="${n.id}">
-        <div class="pcard-top">
-          <strong>Nro. ${String(n.nro).padStart(4, '0')}</strong>
-          <span class="pcard-fecha">${n.fecha || ''}</span>
-        </div>
-        <div class="pcard-mid">${esc(n.nombre) || 'Sin nombre'}</div>
-        <div class="pcard-bot">Total: ₲${fmt(total)}</div>
-      </div>
-    `;
-  }
-
-  function buildNotaSheet(n) {
-    if (!n) return '';
-    const total = calculateTotal(n.items);
-
-    return `
-      <div class="nota-toolbar no-print">
-        <button class="btn-outline row-del" data-action="delete-pedido" style="width: auto; padding: 4px 12px; margin-right: auto; font-size: 14px;">🗑️ Eliminar</button>
-        <button class="btn-primary" data-action="print-pdf">🖨️ Guardar PDF</button>
-      </div>
-
-      <div class="hoja-pedido" id="hoja-print">
-        <!-- CABECERA -->
-        <div class="hoja-header" style="display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 15px;">
-          <!-- MEMBRETE BANNER (Solo impresión) -->
-          <div class="hoja-logo-box print-only" style="display: none; flex: 0 0 60%; text-align: left;">
-            <img src="assets/logo_header.jpeg" alt="Membrete Tamarama" style="width: 100%; max-width: 420px; height: auto; object-fit: contain; mix-blend-mode: multiply;">
-          </div>
-          
-          <div class="hoja-title-box" style="margin-left: auto; text-align: right; display: flex; flex-direction: column; justify-content: flex-end;">
-            <h1 class="hoja-title" style="font-size: 26px; font-weight: 900; text-transform: uppercase; margin: 0 0 15px 0;">Nota de Pedido</h1>
-            <div class="hoja-nro" style="font-size: 18px; display: flex; justify-content: flex-end; align-items: center; gap: 15px;">
-              <span style="font-weight: 600;">Nro.</span>
-              <input type="number" class="hinp hinp-nro" data-field="nro" value="${n.nro || ''}" style="width: 80px; font-weight: 800; font-size: 22px; text-align: right; border: none; border-bottom: 1px solid #ccc; background: transparent;">
-            </div>
-          </div>
-        </div>
-
-        <!-- DATOS DEL CLIENTE -->
-        <div class="hoja-datos">
-          <div class="dato-row">
-            <label>Nombre o Razón Social:</label>
-            <input type="text" class="hinp pinp-field" data-field="nombre" value="${esc(n.nombre)}">
-          </div>
-          <div class="dato-row">
-            <label>Teléfono:</label>
-            <input type="text" class="hinp pinp-field" data-field="telefono" value="${esc(n.telefono)}">
-          </div>
-          <div class="dato-row">
-            <label>Fecha:</label>
-            <input type="date" class="hinp pinp-field" data-field="fecha" value="${n.fecha}">
-          </div>
-        </div>
-
-        <h3 class="detalles-title">Detalles</h3>
-
-        <!-- TABLA -->
-        <table class="hoja-table">
-          <thead>
-            <tr>
-              <th style="width: 15%">Cant.</th>
-              <th style="width: 45%">Descripción</th>
-              <th style="width: 20%">P. Uni.</th>
-              <th style="width: 20%">Total</th>
-              <th class="no-print" style="width: 40px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${n.items.map(item => buildItemRow(item)).join('')}
-          </tbody>
-        </table>
-        
-        <div class="add-item-box no-print">
-          <button class="btn-outline" data-action="add-item">+ Agregar fila</button>
-        </div>
-
-        <!-- FOOTER DE LA HOJA -->
-        <div class="hoja-footer" style="display: flex; flex-direction: column; margin-top: 20px;">
-          
-          <!-- FILA SUPERIOR: PAGO Y TOTAL -->
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px;">
-            <div class="forma-pago" style="margin-bottom: 0;">
-              <label>Forma de Pago:</label>
-              <label class="cb-label"><input type="checkbox" class="cb-pago" data-field="pEfectivo" ${n.pEfectivo ? 'checked' : ''}> Efectivo</label>
-              <label class="cb-label"><input type="checkbox" class="cb-pago" data-field="pTransf" ${n.pTransf ? 'checked' : ''}> Transf.</label>
-              <label class="cb-label"><input type="checkbox" class="cb-pago" data-field="pQR" ${n.pQR ? 'checked' : ''}> QR</label>
-            </div>
-
-            <div class="total-box" style="width: auto; min-width: 200px; padding: 15px 30px;">
-              <span>TOTAL</span>
-              <strong class="hoja-total-valor">₲${fmt(total)}</strong>
-            </div>
-          </div>
-
-          <!-- FILA INFERIOR: FIRMAS (Una al lado de la otra) -->
-          <div class="firmas-area" style="display: flex; flex-direction: row !important; width: 100%; justify-content: space-around; margin-top: 80px;">
-            <div class="firma-box" style="flex: 0 0 35%;">
-              <div class="firma-line"></div>
-              <span>Firma del Cliente</span>
-            </div>
-            <div class="firma-box" style="flex: 0 0 35%;">
-              <img class="sello-pagado-img print-only" src="assets/sello_pagado.png" alt="Sello Pagado" style="display: none; position: absolute; top: -85px; left: 50%; transform: translateX(-50%) rotate(-10deg); width: 130px; height: auto; z-index: 10;">
-              <div class="firma-line" style="position: relative; z-index: 5;"></div>
-              <span>Firma de Propietario</span>
-            </div>
-          </div>
-          
-        </div>
-      </div>
-    `;
-  }
-
-  function buildItemRow(item) {
-    const total = (Number(item.cantidad) || 0) * (Number(item.precioUnit) || 0);
-    return `
-      <tr class="hrow" data-item-id="${item.id}">
-        <td>
-          <input class="cell-inp cell-num item-inp" type="text" inputmode="numeric" data-ifield="cantidad" value="${item.cantidad ? fmt(item.cantidad) : ''}">
-        </td>
-        <td>
-          <input class="cell-inp item-inp" type="text" data-ifield="descripcion" value="${esc(item.descripcion)}">
-        </td>
-        <td>
-          <div class="precio-cell">
-            <span class="precio-prefix">₲</span>
-            <input class="cell-inp cell-num item-inp" type="text" inputmode="numeric" data-ifield="precioUnit" value="${item.precioUnit ? fmt(item.precioUnit) : ''}">
-          </div>
-        </td>
-        <td class="htotal">
-          ₲${fmt(total)}
-        </td>
-        <td class="no-print" style="text-align:center;">
-          <button class="row-del" data-action="delete-item" data-item-id="${item.id}" type="button" style="width: 28px; height: 28px; padding:0; display:flex; justify-content:center; align-items:center;">×</button>
-        </td>
-      </tr>
-    `;
-  }
-
-  function calculateTotal(items) {
-    if (!items || !items.length) return 0;
-    return items.reduce((acc, it) => acc + ((Number(it.cantidad)||0) * (Number(it.precioUnit)||0)), 0);
-  }
-
-  // ── EVENTOS ─────────────────────────────────────────────────────────────
-
-  function setupEvents(container) {
-    if (container.dataset.eventsAttached) return;
-    container.dataset.eventsAttached = 'true';
-
-    container.addEventListener('click', function(e) {
-      // Nueva Nota
-      if (e.target.closest('[data-action="new-pedido"]')) {
-        const d = loadData();
-        const newId = uid();
-        
-        // Auto-incrementar Nro
-        let maxNro = 0;
-        d.notas.forEach(n => {
-           if(Number(n.nro) > maxNro) maxNro = Number(n.nro);
-        });
-
-        d.notas.push({
-          id: newId,
-          nro: maxNro + 1,
-          nombre: '',
-          telefono: '',
-          fecha: today(),
-          items: [],
-          pEfectivo: false,
-          pTransf: false,
-          pQR: false
-        });
-        saveData(d);
-        currentPedidoId = newId;
-        render();
-        return;
-      }
-
-      // Seleccionar Nota
-      const card = e.target.closest('[data-action="select-pedido"]');
-      if (card) {
-        currentPedidoId = card.dataset.id;
-        render();
-        return;
-      }
-
-      // Eliminar Nota
-      if (e.target.closest('[data-action="delete-pedido"]')) {
-        if (!confirm('¿Eliminar esta Nota de Pedido?')) return;
-        const d = loadData();
-        d.notas = d.notas.filter(n => n.id !== currentPedidoId);
-        saveData(d);
-        currentPedidoId = null;
-        render();
-        return;
-      }
-
-      // Añadir fila
-      if (e.target.closest('[data-action="add-item"]')) {
-        const d = loadData();
-        const nota = d.notas.find(n => n.id === currentPedidoId);
-        if (nota) {
-          nota.items.push({ id: uid(), cantidad: '', descripcion: '', precioUnit: '' });
-          saveData(d);
-          render();
-        }
-        return;
-      }
-
-      // Eliminar fila
-      const delBtn = e.target.closest('[data-action="delete-item"]');
-      if (delBtn) {
-        const d = loadData();
-        const nota = d.notas.find(n => n.id === currentPedidoId);
-        if (nota) {
-          nota.items = nota.items.filter(i => i.id !== delBtn.dataset.itemId);
-          saveData(d);
-          render();
-        }
-        return;
-      }
-
-      // Guardar PDF (Imprimir)
-      if (e.target.closest('[data-action="print-pdf"]')) {
-        window.scrollTo(0, 0);
-        document.body.classList.add('printing-pedidos');
-        setTimeout(() => {
-          window.print();
-          setTimeout(() => document.body.classList.remove('printing-pedidos'), 1000);
-        }, 150);
-        return;
-      }
-    });
-
-    // Auto-guardar y Formatear
-    container.addEventListener('input', function(e) {
-      const d = loadData();
-      const nota = d.notas.find(n => n.id === currentPedidoId);
-      if (!nota) return;
-
-      // Checkboxes (forma de pago)
-      if (e.target.matches('.cb-pago')) {
-        const field = e.target.dataset.field;
-        nota[field] = e.target.checked;
-        saveData(d);
-        return;
-      }
-
-      let rawVal = e.target.value;
-      
-      // Formato numérico visual
-      if (e.target.classList.contains('cell-num')) {
-        let numbersOnly = e.target.value.replace(/\D/g, '');
-        e.target.value = numbersOnly ? fmt(numbersOnly) : '';
-        rawVal = numbersOnly;
-      }
-
-      // Campos de la Nota (nombre, telefono, fecha, nro)
-      if (e.target.matches('.pinp-field, .hinp-nro')) {
-        const field = e.target.dataset.field;
-        nota[field] = (field === 'nro') ? (rawVal === '' ? '' : parseInt(rawVal, 10)) : e.target.value;
-        saveData(d);
-        
-        // Actualizaciones DOM en vivo sin render para no perder foco
-        if (field === 'nombre') {
-           const scard = container.querySelector(`.pedido-card[data-id="${nota.id}"] .pcard-mid`);
-           if (scard) scard.textContent = nota.nombre || 'Sin nombre';
-        }
-        if (field === 'fecha') {
-           const scardF = container.querySelector(`.pedido-card[data-id="${nota.id}"] .pcard-fecha`);
-           if (scardF) scardF.textContent = nota.fecha || '';
-        }
-        if (field === 'nro') {
-           const scardN = container.querySelector(`.pedido-card[data-id="${nota.id}"] strong`);
-           if (scardN) scardN.textContent = `Nro. ${String(nota.nro).padStart(4, '0')}`;
-        }
-        return;
-      }
-
-      // Campos de Artículos
-      if (e.target.matches('.item-inp')) {
-        const row = e.target.closest('.hrow');
-        const itemId = row.dataset.itemId;
-        const item = nota.items.find(i => i.id === itemId);
-        
-        if (item) {
-          const field = e.target.dataset.ifield;
-          item[field] = e.target.classList.contains('cell-num')
-            ? (rawVal === '' ? '' : parseFloat(rawVal))
-            : e.target.value;
-          saveData(d);
-
-          // Actualizar total visual
-          if (field === 'cantidad' || field === 'precioUnit') {
-            const rTot = (Number(item.cantidad)||0) * (Number(item.precioUnit)||0);
-            const totalEl = row.querySelector('.htotal');
-            if (totalEl) totalEl.textContent = '₲' + fmt(rTot);
-            
-            // Actualizar total general
-            const totalGeneral = calculateTotal(nota.items);
-            const hojaTotal = container.querySelector('.hoja-total-valor');
-            if (hojaTotal) hojaTotal.textContent = '₲' + fmt(totalGeneral);
-            
-            const pcard = container.querySelector(`.pedido-card[data-id="${nota.id}"] .pcard-bot`);
-            if (pcard) pcard.textContent = 'Total: ₲' + fmt(totalGeneral);
-          }
-        }
-      }
-    });
-  }
-
-  // ── INIT ────────────────────────────────────────────────────────────────
+  let current    = null;
+  let designMode = false;
+  let fontMode   = false;
 
   function init() {
-    const data = loadData();
-    // Auto-limpieza: eliminar notas vacías (borradores descartados)
-    const initLen = data.notas.length;
-    data.notas = data.notas.filter(n => n.nombre?.trim() || n.telefono?.trim() || n.items.length > 0);
-    if (data.notas.length !== initLen) {
-      saveData(data);
-      if (currentPedidoId && !data.notas.find(n => n.id === currentPedidoId)) {
-        currentPedidoId = null;
+    const c = document.getElementById('section-pedidos');
+    if (c) render(c);
+  }
+
+  // ── RENDER PRINCIPAL ─────────────────────────────────────────────
+  function render(c) {
+    if (!c) c = document.getElementById('section-pedidos');
+    if (!c) return;
+    const d   = load();
+    const pos = loadPos();
+    
+    if (!current && d.notas.length > 0) current = d.notas[d.notas.length-1].id;
+    const n   = current ? d.notas.find(x => x.id === current) : null;
+    const fs  = pos.fontSize;
+
+    let rowsHTML = '';
+    if (n) {
+      for(let i=0; i<10; i++) {
+        rowsHTML += renderStdField('cant'+i, 'Cant', n['cant'+i], pos.fields, fs, true);
+        rowsHTML += renderStdField('desc'+i, 'Desc', n['desc'+i], pos.fields, fs, false);
+        rowsHTML += renderStdField('puni'+i, 'P.Uni', n['puni'+i], pos.fields, fs, true);
+        rowsHTML += renderStdField('tot'+i, 'Total', n['tot'+i], pos.fields, fs, true, true);
       }
     }
-    render();
+
+    c.innerHTML = `
+<style>
+  /* Scoped styles */
+  .npw-handle-wrap { position:absolute; }
+  .npw-inp-base {
+    width:100%; height:100%; box-sizing:border-box;
+    border:none; border-radius:0; outline:none;
+    background:transparent; box-shadow:none;
+    -webkit-appearance:none; appearance:none;
+    font-family:Nunito,Arial,sans-serif;
+    color:#111; padding:0 2%; display:block;
+  }
+  .npw-inp-base:focus { outline:none; box-shadow:none; }
+  .npw-inp-base.num-align { text-align: right; }
+
+  /* Borde en modo diseño */
+  .design-on .npw-handle-wrap { cursor:move; }
+  .design-on .npw-handle-wrap .npw-inp-base {
+    background:rgba(237,233,254,0.55);
+    border:2px dashed rgba(124,58,237,0.85) !important;
+    border-radius:3px;
+    pointer-events:none;
+  }
+
+  /* Handles de resize (esquinas) */
+  .npw-rz {
+    display:none;
+    position:absolute;
+    width:12px; height:12px;
+    background:#7C3AED;
+    border:2px solid #fff;
+    border-radius:2px;
+    z-index:30;
+  }
+  .design-on .npw-rz { display:block; cursor:nwse-resize; }
+  .npw-rz-nw { top:-6px;    left:-6px;    cursor:nwse-resize; }
+  .npw-rz-ne { top:-6px;    right:-6px;   cursor:nesw-resize; }
+  .npw-rz-sw { bottom:-6px; left:-6px;    cursor:nesw-resize; }
+  .npw-rz-se { bottom:-6px; right:-6px;   cursor:nwse-resize; }
+
+  /* Botón borrar campo custom */
+  .npw-del-custom {
+    display:none;
+    position:absolute;
+    top:-11px; right:14px;
+    width:18px; height:18px;
+    background:#EF4444;
+    color:#fff;
+    border:none; border-radius:50%;
+    font-size:11px; font-weight:700;
+    cursor:pointer; z-index:31;
+    line-height:18px; text-align:center;
+  }
+  .design-on .npw-del-custom { display:block; }
+
+  /* Label del campo en modo diseño */
+  .npw-field-label {
+    display:none;
+    position:absolute;
+    top:-18px; left:0;
+    font-size:9px; font-weight:700;
+    color:#7C3AED; white-space:nowrap;
+    background:rgba(237,233,254,0.9);
+    padding:1px 4px; border-radius:2px;
+    pointer-events:none;
+    z-index:29;
+  }
+  .design-on .npw-field-label { display:block; }
+</style>
+
+<style media="print">
+  body.printing-pedidos * { visibility: hidden; }
+  body.printing-pedidos #np-hoja-print, 
+  body.printing-pedidos #np-hoja-print * { visibility: visible; }
+  
+  body.printing-pedidos,
+  body.printing-pedidos html,
+  body.printing-pedidos .main-content,
+  body.printing-pedidos .app-section,
+  body.printing-pedidos #section-pedidos,
+  body.printing-pedidos #section-pedidos > div,
+  body.printing-pedidos #section-pedidos > div > div {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.printing-pedidos aside,
+  body.printing-pedidos .app-header,
+  body.printing-pedidos .sidebar,
+  body.printing-pedidos .no-print { display: none !important; }
+  
+  body.printing-pedidos #np-hoja-print {
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+  
+  body.printing-pedidos #npw-img {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+  .npw-inp-base { background: transparent !important; border: none !important; }
+  .no-print { display: none !important; }
+</style>
+
+<div style="display:flex;height:100%;min-height:100vh;background:#DCDCDC;font-family:Nunito,Arial,sans-serif;">
+
+  <!-- PANEL LATERAL -->
+  <aside style="width:230px;flex-shrink:0;background:#fff;border-right:1px solid #ddd;display:flex;flex-direction:column;" class="no-print">
+    <div style="padding:14px 12px 10px;border-bottom:1px solid #eee;display:flex;flex-direction:column;gap:8px;">
+      <p style="margin:0;font-size:13px;font-weight:800;color:#555;">📝 Notas de Pedido</p>
+      <button id="npw-new" style="background:#E91E8C;color:#fff;border:none;border-radius:7px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;width:100%;">+ Nueva Nota</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:4px 0;">
+      ${d.notas.length===0
+        ? '<p style="color:#aaa;font-size:12px;padding:10px;">Sin notas aún.</p>'
+        : d.notas.slice().reverse().map(x=>`
+          <div class="npw-sitem" data-id="${x.id}" style="padding:9px 12px;border-bottom:1px solid #f5f5f5;cursor:pointer;background:${x.id===current?'#fce7f3':'#fff'};border-left:${x.id===current?'3px solid #E91E8C':'3px solid transparent'};">
+            <b style="display:flex;justify-content:space-between;font-size:12px;color:#222;">
+              <span>Nº${x.nro}</span>
+              <span class="sitem-fecha" style="font-weight:normal;color:#777;font-size:10px;">${esc(x.fecha||'')}</span>
+            </b>
+            <span class="sitem-nombre" style="display:block;font-size:12px;color:#444;margin-top:1px;">${esc(x.nombre||'Sin nombre')}</span>
+            <span class="sitem-total" style="display:block;font-size:13px;font-weight:700;color:#E91E8C;margin-top:4px;">₲${fmt(x.total)}</span>
+          </div>`).join('')
+      }
+    </div>
+  </aside>
+
+  <!-- ÁREA PRINCIPAL -->
+  <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:16px 20px 50px;background:#DCDCDC;">
+
+    ${n ? `
+    <!-- TOOLBAR -->
+    <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;width:100%;max-width:700px;margin-bottom:8px;" class="no-print">
+      
+      <button id="npw-toggle-design"
+        style="background:${designMode?'#7C3AED':'#6B7280'};color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+        ${designMode?'✅ Listo (salir del modo diseño)':'🎨 Modo Diseño'}
+      </button>
+
+      ${designMode ? `
+      <button id="npw-add-box"
+        style="background:#059669;color:#fff;border:none;border-radius:7px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">
+        ➕ Agregar cuadro
+      </button>
+      <button id="npw-reset-pos" style="background:#EF4444;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;">↺ Resetear Layout</button>
+      ` : ''}
+
+      <button id="npw-toggle-fontmode" style="background:${fontMode?'#7C3AED':'#6B7280'};color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;">
+        ${fontMode ? '✅ Guardar tamaños' : '🔤 Tamaños de letra'}
+      </button>
+      <button class="npw-del-nota" data-del="${n.id}" style="background:transparent;border:1px solid #ccc;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit;color:#555;">🗑️ Eliminar</button>
+      <button id="npw-print" style="background:#E91E8C;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">🖨️ PDF</button>
+    </div>
+
+    ${designMode ? `
+    <div style="background:#7C3AED;color:#fff;padding:7px 16px;border-radius:8px;margin-bottom:8px;font-size:11px;text-align:center;width:100%;max-width:700px;" class="no-print">
+      🎨 Arrastrá los campos · Arrastrá las esquinas para cambiar el tamaño · Botón <b>➕</b> para agregar más cuadros
+    </div>` : ''}
+
+    <!-- CONTENEDOR DE LA HOJA -->
+    <div id="np-hoja-print" class="${designMode?'design-on':''}" style="position:relative;width:100%;max-width:700px;box-shadow:0 3px 24px rgba(0,0,0,0.15);aspect-ratio:1055/1491;container-type:inline-size;background:#fff;">
+
+      <img src="assets/nota_pedido_form.svg" id="npw-img"
+           style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;object-fit:contain;" draggable="false">
+
+      <img src="assets/logo_header.jpeg" 
+           style="position:absolute; top:3%; left:4.5%; width:45%; opacity:0.95; mix-blend-mode:multiply; pointer-events:none;" draggable="false">
+
+      <!-- Campos estándar -->
+      ${renderStdField('nro',      `Nº`,       n.nro,       pos.fields, fs, true)}
+      ${renderStdField('nombre',   'Nombre',   n.nombre,    pos.fields, fs, false)}
+      ${renderStdField('telefono', 'Teléfono', n.telefono,  pos.fields, fs, false)}
+      ${renderStdField('fecha',    'Fecha',    n.fecha,     pos.fields, fs, false)}
+      
+      ${rowsHTML}
+
+      ${renderStdField('total', 'TOTAL', n.total, pos.fields, fs, true, true)}
+
+      <!-- Cuadrados de pago -->
+      ${renderCheckBox('efectivo',     'Efectivo', n.efectivo, pos.fields)}
+      ${renderCheckBox('transferencia','Transf',   n.transferencia, pos.fields)}
+      ${renderCheckBox('qr',           'QR',       n.qr, pos.fields)}
+
+      <!-- Campos custom (agregados por el usuario) -->
+      ${pos.custom.map(cx => renderCustomField(cx, n, fs)).join('')}
+
+    </div>
+    ` : `<div style="margin-top:100px;text-align:center;color:#aaa;font-size:16px;line-height:2.5;" class="no-print">📋<br>Creá o seleccioná una Nota de Pedido</div>`}
+
+  </div>
+</div>`;
+
+    bind(c, d);
+  }
+
+  // ── Renderiza un campo estándar ────────────────────────────────
+  function renderStdField(pk, label, val, fields, globalFs, isNum, isBold) {
+    const p = fields[pk] || DEFAULT_POS[pk] || {top:50,left:30,w:40,h:4};
+    const fs = p.fs || globalFs || 16;
+    const alignClass = isNum ? 'num-align' : '';
+    const boldStyle = isBold ? 'font-weight:800; color:#fff;' : '';
+    let dispVal = val;
+    if (isNum && val) dispVal = (pk.startsWith('cant') || pk === 'nro') ? val : '₲' + fmt(val);
+    
+    return `
+    <div class="npw-handle-wrap" data-pk="${pk}"
+         style="top:${p.top}%;left:${p.left}%;width:${p.w}%;height:${p.h}%;">
+      <span class="npw-field-label" style="display:${fontMode?'block':'none'}">${label}</span>
+      <input class="npw-inp-base np-std-inp ${alignClass}" data-pk="${pk}"
+             value="${esc(dispVal)}" ${pk === 'nro' ? 'readonly' : ''}
+             style="font-size:calc(${fs} / 700 * 100cqw); ${boldStyle} ${fontMode?'border:1.5px dashed #7C3AED; background:rgba(237,233,254,0.4);':''}"
+             ${designMode?'readonly':''}>
+      ${fontMode ? `
+      <div class="npw-fs-controls no-print" style="position:absolute;right:-45px;top:0;display:flex;gap:2px;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px;z-index:50;">
+        <button class="npw-fs-btn" data-pk="${pk}" data-dir="-1" style="width:20px;height:20px;cursor:pointer;border:none;background:#eee;border-radius:2px;font-weight:bold;">-</button>
+        <button class="npw-fs-btn" data-pk="${pk}" data-dir="1" style="width:20px;height:20px;cursor:pointer;border:none;background:#eee;border-radius:2px;font-weight:bold;">+</button>
+      </div>` : ''}
+      <div class="npw-rz npw-rz-nw" data-pk="${pk}" data-corner="nw"></div>
+      <div class="npw-rz npw-rz-ne" data-pk="${pk}" data-corner="ne"></div>
+      <div class="npw-rz npw-rz-sw" data-pk="${pk}" data-corner="sw"></div>
+      <div class="npw-rz npw-rz-se" data-pk="${pk}" data-corner="se"></div>
+    </div>`;
+  }
+
+  function renderCheckBox(pk, label, active, fields) {
+    const p = fields[pk] || DEFAULT_POS[pk] || {top:50,left:60,w:3,h:2};
+    return `
+    <div class="npw-handle-wrap npw-toggle-box" data-pk="${pk}" data-toggle="${pk}"
+         style="top:${p.top}%;left:${p.left}%;width:${p.w}%;height:${p.h}%;
+                background:transparent; cursor:pointer;
+                display:flex;align-items:center;justify-content:center;">
+      <span class="npw-field-label">${label}</span>
+      <span class="npw-check-icon" style="font-size:24px;font-weight:900;color:#000;pointer-events:none;">${active?'✔':''}</span>
+      <div class="npw-rz npw-rz-nw" data-pk="${pk}" data-corner="nw"></div>
+      <div class="npw-rz npw-rz-ne" data-pk="${pk}" data-corner="ne"></div>
+      <div class="npw-rz npw-rz-sw" data-pk="${pk}" data-corner="sw"></div>
+      <div class="npw-rz npw-rz-se" data-pk="${pk}" data-corner="se"></div>
+    </div>`;
+  }
+
+  function renderCustomField(cx, n, globalFs) {
+    const fs = cx.fs || globalFs || 16;
+    const val = (n && n.customValues && n.customValues[cx.id]) || '';
+    return `
+    <div class="npw-handle-wrap" data-pk="${cx.id}" data-custom="1"
+         style="top:${cx.top}%;left:${cx.left}%;width:${cx.w}%;height:${cx.h}%;">
+      <span class="npw-field-label" style="display:${fontMode?'block':'none'}">Cuadro extra</span>
+      <button class="npw-del-custom" data-custom-id="${cx.id}">✕</button>
+      <input class="npw-inp-base np-custom-inp" data-custom-id="${cx.id}"
+             value="${esc(val)}"
+             style="font-size:calc(${fs} / 700 * 100cqw); ${fontMode?'border:1.5px dashed #7C3AED; background:rgba(237,233,254,0.4);':''}"
+             ${designMode?'readonly':''}>
+      ${fontMode ? `
+      <div class="npw-fs-controls no-print" style="position:absolute;right:-45px;top:0;display:flex;gap:2px;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px;z-index:50;">
+        <button class="npw-fs-btn" data-pk="${cx.id}" data-custom="1" data-dir="-1" style="width:20px;height:20px;cursor:pointer;border:none;background:#eee;border-radius:2px;font-weight:bold;">-</button>
+        <button class="npw-fs-btn" data-pk="${cx.id}" data-custom="1" data-dir="1" style="width:20px;height:20px;cursor:pointer;border:none;background:#eee;border-radius:2px;font-weight:bold;">+</button>
+      </div>` : ''}
+      <div class="npw-rz npw-rz-nw" data-pk="${cx.id}" data-corner="nw"></div>
+      <div class="npw-rz npw-rz-ne" data-pk="${cx.id}" data-corner="ne"></div>
+      <div class="npw-rz npw-rz-sw" data-pk="${cx.id}" data-corner="sw"></div>
+      <div class="npw-rz npw-rz-se" data-pk="${cx.id}" data-corner="se"></div>
+    </div>`;
+  }
+
+  // ── EVENTOS ────────────────────────────────────────────────────
+  function bind(c, d) {
+    const container = c.querySelector('#np-hoja-print');
+
+    // Nueva nota
+    c.querySelector('#npw-new')?.addEventListener('click', () => {
+      const dd = load();
+      const n = { id:uid(), nro:dd.next++, nombre:'', telefono:'', fecha:today(),
+        total:'', efectivo:false, transferencia:false, qr:false, customValues:{} };
+      for(let i=0; i<10; i++) { n['cant'+i]=''; n['desc'+i]=''; n['puni'+i]=''; n['tot'+i]=''; }
+      dd.notas.push(n); save(dd); current = n.id; render(c);
+    });
+
+    // Seleccionar nota
+    c.querySelectorAll('.npw-sitem').forEach(el =>
+      el.addEventListener('click', () => { current=el.dataset.id; render(c); }));
+
+    // Eliminar nota
+    c.querySelector('.npw-del-nota')?.addEventListener('click', () => {
+      if (!confirm('¿Eliminar esta nota?')) return;
+      const dd=load(); dd.notas=dd.notas.filter(x=>x.id!==current);
+      save(dd); current=dd.notas.length?dd.notas[dd.notas.length-1].id:null; render(c);
+    });
+
+    // PDF
+    c.querySelector('#npw-print')?.addEventListener('click', () => {
+      window.scrollTo(0, 0);
+      document.body.classList.add('printing-pedidos');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => document.body.classList.remove('printing-pedidos'), 1000);
+      }, 150);
+    });
+
+    // Toggle modo diseño
+    c.querySelector('#npw-toggle-design')?.addEventListener('click', () => {
+      designMode=!designMode; render(c);
+    });
+
+    // Toggle font mode
+    c.querySelector('#npw-toggle-fontmode')?.addEventListener('click', () => {
+      fontMode = !fontMode; render(c);
+    });
+
+    // Ajustar tamaño de letra individual
+    c.querySelectorAll('.npw-fs-btn').forEach(btn =>
+      btn.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const pk = btn.dataset.pk;
+        const dir = parseInt(btn.dataset.dir);
+        const isCustom = btn.dataset.custom === '1';
+        const p = loadPos();
+        
+        let entry;
+        if (isCustom) entry = p.custom.find(x => x.id === pk);
+        else {
+          if (!p.fields[pk]) p.fields[pk] = {...DEFAULT_POS[pk]};
+          entry = p.fields[pk];
+        }
+
+        if (entry) {
+          entry.fs = Math.max(8, Math.min(48, (entry.fs || p.fontSize || 16) + dir));
+          savePos(p);
+          const wrap = c.querySelector(`.npw-handle-wrap[data-pk="${pk}"]`);
+          if (wrap) {
+            const inp = wrap.querySelector('.npw-inp-base');
+            if (inp) inp.style.fontSize = `calc(${entry.fs} / 700 * 100cqw)`;
+          }
+        }
+      })
+    );
+
+    // Resetear posiciones
+    c.querySelector('#npw-reset-pos')?.addEventListener('click', () => {
+      if (!confirm('¿Resetear todas las posiciones a los valores originales?')) return;
+      localStorage.removeItem(POS_KEY); render(c);
+    });
+
+    // Agregar cuadro extra
+    c.querySelector('#npw-add-box')?.addEventListener('click', () => {
+      const p=loadPos();
+      const newBox = { id:uid(), top:45, left:30, w:40, h:4 };
+      p.custom.push(newBox); savePos(p); render(c);
+    });
+
+    // Borrar campo custom
+    c.querySelectorAll('.npw-del-custom').forEach(btn =>
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cid = btn.dataset.customId;
+        const p=loadPos(); p.custom=p.custom.filter(x=>x.id!==cid);
+        savePos(p); render(c);
+      }));
+
+    // Auto-guardar campos estándar
+    c.querySelectorAll('.np-std-inp').forEach(inp =>
+      inp.addEventListener('input', () => {
+        if (designMode) return;
+        const pk=inp.dataset.pk; const dd=load(); const n=dd.notas.find(x=>x.id===current);
+        if (!n) return;
+        
+        let rawVal = inp.value.replace(/₲/g, '').replace(/\./g, '').trim();
+        
+        if (pk.startsWith('cant') || pk.startsWith('puni')) {
+           n[pk] = rawVal;
+           // Calcular total fila
+           const idx = pk.replace(/\D/g, '');
+           const cVal = Number(n['cant'+idx]) || 0;
+           const pVal = Number(n['puni'+idx]) || 0;
+           n['tot'+idx] = (cVal > 0 && pVal > 0) ? (cVal * pVal) : '';
+           
+           // Recalcular total general
+           let grandTotal = 0;
+           for(let i=0; i<10; i++) grandTotal += Number(n['tot'+i]) || 0;
+           n.total = grandTotal > 0 ? grandTotal : '';
+        } else if (!pk.startsWith('tot') && pk !== 'total') {
+           n[pk] = inp.value;
+        }
+
+        save(dd);
+
+        // Actualizar valores en vivo
+        if (pk.startsWith('cant') || pk.startsWith('puni')) {
+           render(c); // Re-render para actualizar cálculos visualmente
+           return;
+        }
+
+        if (pk === 'nombre') {
+          const sitem = c.querySelector(`.npw-sitem[data-id="${current}"]`);
+          if (sitem) {
+            const clSpan = sitem.querySelector('.sitem-nombre');
+            if (clSpan) clSpan.textContent = inp.value || 'Sin nombre';
+          }
+        }
+        if (pk === 'fecha') {
+          const sitem = c.querySelector(`.npw-sitem[data-id="${current}"]`);
+          if (sitem) {
+            const feSpan = sitem.querySelector('.sitem-fecha');
+            if (feSpan) feSpan.textContent = inp.value || '';
+          }
+        }
+      }));
+
+    // Auto-guardar campos custom
+    c.querySelectorAll('.np-custom-inp').forEach(inp =>
+      inp.addEventListener('input', () => {
+        if (designMode) return;
+        const cid=inp.dataset.customId; const dd=load(); const n=dd.notas.find(x=>x.id===current);
+        if (n) { if(!n.customValues)n.customValues={}; n.customValues[cid]=inp.value; save(dd); }
+      }));
+
+    // Toggle pago
+    c.querySelectorAll('.npw-toggle-box').forEach(el =>
+      el.addEventListener('click', (e) => {
+        if (designMode || e.target.classList.contains('npw-rz')) return;
+        const k=el.dataset.toggle; const dd=load(); const n=dd.notas.find(x=>x.id===current);
+        if (n) {
+          n[k]=!n[k]; save(dd);
+          const icon = el.querySelector('.npw-check-icon');
+          if (icon) icon.textContent = n[k] ? '✔' : '';
+        }
+      }));
+
+    // ── DRAG & RESIZE en modo diseño ────────────────────────────
+    if (!designMode || !container) return;
+
+    function getContRect() { return container.getBoundingClientRect(); }
+    function pct(px, full) { return (px/full)*100; }
+    function getEventPoint(e) { return e.type.startsWith('touch') ? e.touches[0] : e; }
+
+    // Drag
+    c.querySelectorAll('.npw-handle-wrap').forEach(wrap => {
+      function startDrag(e) {
+        if (e.target.classList.contains('npw-rz') || e.target.classList.contains('npw-del-custom') || e.target.classList.contains('npw-fs-btn')) return;
+        if(e.type === 'mousedown') e.preventDefault();
+        
+        const pt = getEventPoint(e);
+        const pk   = wrap.dataset.pk;
+        const p    = loadPos();
+        const rect = getContRect();
+        const startX=pt.clientX, startY=pt.clientY;
+        const entry = p.fields[pk] || p.custom.find(x=>x.id===pk);
+        if (!entry) return;
+        const startLeft=entry.left, startTop=entry.top;
+
+        function onMove(ev) {
+          const ept = getEventPoint(ev);
+          const dx=pct(ept.clientX-startX, rect.width);
+          const dy=pct(ept.clientY-startY, rect.height);
+          entry.left=Math.max(0,Math.min(98-entry.w, startLeft+dx));
+          entry.top =Math.max(0,Math.min(98-entry.h, startTop+dy));
+          wrap.style.left=entry.left+'%';
+          wrap.style.top =entry.top+'%';
+        }
+        function onUp() {
+          document.removeEventListener('mousemove',onMove);
+          document.removeEventListener('mouseup',onUp);
+          document.removeEventListener('touchmove',onMove);
+          document.removeEventListener('touchend',onUp);
+          savePos(p);
+        }
+        document.addEventListener('mousemove',onMove);
+        document.addEventListener('mouseup',onUp);
+        document.addEventListener('touchmove',onMove, {passive:false});
+        document.addEventListener('touchend',onUp);
+      }
+      wrap.addEventListener('mousedown', startDrag);
+      wrap.addEventListener('touchstart', startDrag, {passive:false});
+    });
+
+    // Resize
+    c.querySelectorAll('.npw-rz').forEach(handle => {
+      function startResize(e) {
+        if(e.type === 'mousedown') e.preventDefault();
+        e.stopPropagation();
+        const pt = getEventPoint(e);
+        
+        const pk     = handle.dataset.pk;
+        const corner = handle.dataset.corner;
+        const p      = loadPos();
+        const rect   = getContRect();
+        const entry  = p.fields[pk] || p.custom.find(x=>x.id===pk);
+        if (!entry) return;
+        const wrap = c.querySelector(`.npw-handle-wrap[data-pk="${pk}"]`);
+        const startX=pt.clientX, startY=pt.clientY;
+        const startW=entry.w, startH=entry.h, startLeft=entry.left, startTop=entry.top;
+
+        function onMove(ev) {
+          const ept = getEventPoint(ev);
+          const dx=pct(ept.clientX-startX, rect.width);
+          const dy=pct(ept.clientY-startY, rect.height);
+
+          if (corner==='se') {
+            entry.w = Math.max(2, startW+dx);
+            entry.h = Math.max(1, startH+dy);
+          } else if (corner==='sw') {
+            const newW = Math.max(2, startW-dx);
+            entry.left = startLeft+(startW-newW);
+            entry.w    = newW;
+            entry.h    = Math.max(1, startH+dy);
+          } else if (corner==='ne') {
+            entry.w = Math.max(2, startW+dx);
+            const newH = Math.max(1, startH-dy);
+            entry.top  = startTop+(startH-newH);
+            entry.h    = newH;
+          } else { // nw
+            const newW = Math.max(2, startW-dx);
+            const newH = Math.max(1, startH-dy);
+            entry.left = startLeft+(startW-newW);
+            entry.top  = startTop+(startH-newH);
+            entry.w    = newW;
+            entry.h    = newH;
+          }
+          if (wrap) {
+            wrap.style.width = entry.w+'%';
+            wrap.style.height= entry.h+'%';
+            wrap.style.left  = entry.left+'%';
+            wrap.style.top   = entry.top+'%';
+          }
+        }
+        function onUp() {
+          document.removeEventListener('mousemove',onMove);
+          document.removeEventListener('mouseup',onUp);
+          document.removeEventListener('touchmove',onMove);
+          document.removeEventListener('touchend',onUp);
+          savePos(p);
+        }
+        document.addEventListener('mousemove',onMove);
+        document.addEventListener('mouseup',onUp);
+        document.addEventListener('touchmove',onMove, {passive:false});
+        document.addEventListener('touchend',onUp);
+      }
+      handle.addEventListener('mousedown', startResize);
+      handle.addEventListener('touchstart', startResize, {passive:false});
+    });
   }
 
   return { init };
